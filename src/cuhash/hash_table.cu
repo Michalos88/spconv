@@ -3,10 +3,10 @@
 // -------------------------------------------------------------
 // $Revision:$
 // $Date:$
-// ------------------------------------------------------------- 
+// -------------------------------------------------------------
 // This source code is distributed under the terms of license.txt in
 // the root directory of this source distribution.
-// ------------------------------------------------------------- 
+// -------------------------------------------------------------
 
 /**
  * @file hash_table.cu
@@ -27,9 +27,9 @@ namespace CUDAWrapper {
     void ClearTable(const unsigned  slots_in_table,
                     const Entry     fill_value,
                           Entry    *d_contents) {
-        clear_table<Entry><<<ComputeGridDim(slots_in_table), kBlockSize>>>
+        clear_table<<<ComputeGridDim(slots_in_table), kBlockSize>>>
             (slots_in_table, fill_value, d_contents);
-        TV_CHECK_CUDA_ERR_V2("Error occurred during hash table clear.\n");
+        CUDA_CHECK_ERROR("Error occurred during hash table clear.\n");
     }
 
     void CallCuckooHash(const unsigned      n,
@@ -102,7 +102,7 @@ namespace CUDAWrapper {
                  d_failures,
                  d_iterations_taken);
         }
-    
+
         CUDA_CHECK_ERROR("Error occurred during hash table build.\n");
     }
 
@@ -123,7 +123,7 @@ namespace CUDAWrapper {
     #ifdef TRACK_ITERATIONS
         CUDA_SAFE_CALL(cudaMalloc((void**)&d_retrieval_probes, sizeof(unsigned) * n_queries));
     #endif
-    
+
         if (num_hash_functions == 2) {
             hash_retrieve<<<ComputeGridDim(n_queries), kBlockSize>>>
                 (n_queries,
@@ -169,9 +169,9 @@ namespace CUDAWrapper {
                  d_values,
                  d_retrieval_probes);
         }
-      
+
         CUDA_CHECK_ERROR("Retrieval failed.\n");
-    
+
     #ifdef TRACK_ITERATIONS
         OutputRetrievalStatistics(n_queries,
                                   d_retrieval_probes,

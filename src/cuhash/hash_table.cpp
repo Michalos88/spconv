@@ -3,10 +3,10 @@
 // -------------------------------------------------------------
 // $Revision:$
 // $Date:$
-// ------------------------------------------------------------- 
+// -------------------------------------------------------------
 // This source code is distributed under the terms of license.txt in
 // the root directory of this source distribution.
-// ------------------------------------------------------------- 
+// -------------------------------------------------------------
 
 /**
  * @file hash_table.cpp
@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+
 #include <cuda_runtime_api.h>
 #include <cuhash/cuda_util.h>
 
@@ -58,9 +59,20 @@ unsigned ComputeMaxIterations(const unsigned n,
     float load_factor = float(n) / table_size;
     float ln_load_factor = (float)(log(load_factor) / log(2.71828183));
 
-    unsigned max_iterations = (unsigned)(4.0 * ceil(-1.0 / (0.028255 + 1.1594772 * 
+    unsigned max_iterations = (unsigned)(4.0 * ceil(-1.0 / (0.028255 + 1.1594772 *
                                                ln_load_factor)* lg_input_size));
 #endif
+
+    // Debugging: Print out how many iterations are allowed.
+#ifdef _DEBUG
+    sprintf(buffer, "Maximum iterations: %u (%f lg (N))", max_iterations,
+            max_iterations / lg_input_size);
+    PrintMessage(buffer, false);
+
+    sprintf(buffer, "Number of functions: %u", num_functions);
+    PrintMessage(buffer, false);
+#endif
+
     return max_iterations;
 }
 /// @}
@@ -70,8 +82,8 @@ HashTable::HashTable() : table_size_(0),
                          d_contents_(NULL),
                          stash_count_(0),
                          d_failures_(NULL) {
-    CUDA_CHECK_ERROR("Failed in constructor.\n");                         
-}                         
+    CUDA_CHECK_ERROR("Failed in constructor.\n");
+}
 
 
 bool HashTable::Initialize(const unsigned max_table_entries,
@@ -101,9 +113,14 @@ bool HashTable::Initialize(const unsigned max_table_entries,
     num_hash_functions_ = num_functions;
     table_size_ = unsigned(ceil(max_table_entries * space_usage));
 
+#ifdef _DEBUG
+    sprintf(buffer, "Table size: %u slots", table_size_);
+    PrintMessage(buffer);
+#endif
+
     // Allocate memory.
     const unsigned slots_to_allocate = table_size_ + kStashSize;
-    CUDA_SAFE_CALL(cudaMalloc( (void**)&d_contents_, 
+    CUDA_SAFE_CALL(cudaMalloc( (void**)&d_contents_,
                                sizeof(Entry) * slots_to_allocate ));
     CUDA_SAFE_CALL(cudaMalloc( (void**)&d_failures_, sizeof(unsigned) ));
     if (!d_contents_ || !d_failures_) {
@@ -132,7 +149,7 @@ void HashTable::Release() {
 bool HashTable::Build(const unsigned  n,
                       const unsigned *d_keys,
                       const unsigned *d_values) {
-    unsigned max_iterations = ComputeMaxIterations(n, table_size_, 
+    unsigned max_iterations = ComputeMaxIterations(n, table_size_,
                                                    num_hash_functions_);
     unsigned num_failures = 1;
     unsigned num_attempts = 0;
@@ -151,7 +168,7 @@ bool HashTable::Build(const unsigned  n,
     // Main build loop.
     while (num_failures && ++num_attempts < kMaxRestartAttempts) {
         CUDA_SAFE_CALL(cudaMemset(d_stash_count, 0, sizeof(unsigned)));
-    
+
         // Generate new hash functions.
         if (num_hash_functions_ == 2)
             constants_2_.Generate(n, d_keys,table_size_);
@@ -162,8 +179,8 @@ bool HashTable::Build(const unsigned  n,
         else
             constants_5_.Generate(n, d_keys,table_size_);
 
-        stash_constants_.x = std::max(1u, generate_random_uint32()) % kPrimeDivisor;
-        stash_constants_.y = generate_random_uint32() % kPrimeDivisor;
+        stash_constants_.x = std::max(1lu, genrand_int32()) % kPrimeDivisor;
+        stash_constants_.y = genrand_int32() % kPrimeDivisor;
         stash_count_ = 0;
 
         // Initialize memory.
@@ -189,7 +206,7 @@ bool HashTable::Build(const unsigned  n,
                                     d_stash_count,
                                     d_failures_,
                                     d_iterations_taken);
-             
+
         // Check if successful.
         CUDA_SAFE_CALL(cudaMemcpy( &num_failures, d_failures_, sizeof(unsigned), cudaMemcpyDeviceToHost ));
 
@@ -203,12 +220,12 @@ bool HashTable::Build(const unsigned  n,
     // Copy out the stash size.
     CUDA_SAFE_CALL(cudaMemcpy( &stash_count_, d_stash_count, sizeof(unsigned), cudaMemcpyDeviceToHost ));
     if (stash_count_ && num_failures == 0) {
-        // sprintf(buffer, "Stash size: %u", stash_count_);
-        // PrintMessage(buffer, true);
+        sprintf(buffer, "Stash size: %u", stash_count_);
+        PrintMessage(buffer, true);
 
 #ifdef _DEBUG
         PrintStashContents(d_contents_ + table_size_);
-#endif    
+#endif
     }
     CUDA_SAFE_CALL(cudaFree(d_stash_count));
 
@@ -224,7 +241,7 @@ bool HashTable::Build(const unsigned  n,
         sprintf(buffer, "Completely failed to build");
         PrintMessage(buffer, true);
     } else if (num_attempts > 1) {
-        sprintf(buffer, "Needed %u attempts to build, you can ignore this message.", num_attempts);
+        sprintf(buffer, "Needed %u attempts to build", num_attempts);
         PrintMessage(buffer, true);
     }
 
@@ -251,7 +268,7 @@ void HashTable::Retrieve(const unsigned  n_queries,
 }
 
 
-};  // namesapce CuckooHashing
+};  // namespace CudaHT
 
 
 // Leave this at the end of the file
