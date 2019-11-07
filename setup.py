@@ -80,6 +80,25 @@ class CMakeBuild(build_ext):
             os.makedirs(self.build_temp)
         print("|||||CMAKE ARGS|||||", cmake_args)
         subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
+        subprocess.check_call(['cmake', ext.sourcedir] + cmake_args, cwd=self.build_temp, env=env)
+
+        build_make_file = '/jet/prs/spconv/build/temp.linux-x86_64-3.6/src/spconv/CMakeFiles/spconv.dir/build.make'
+        link_file = '/jet/prs/spconv/build/temp.linux-x86_64-3.6/src/spconv/CMakeFiles/spconv.dir/link.txt'
+
+        for file in [build_make_file, link_file]:
+            with open(file) as f:
+                newText = f.read().replace('/usr/local/cuda', env['CUDA_ROOT'])
+
+            with open(file, "w") as f:
+                f.write(newText)
+
+        for file in [build_make_file, link_file]:
+            with open(file) as f:
+                newText = f.read().replace('/jet/lib64/libnvToolsExt.so', '/jet/lib/libnvToolsExt.so')
+
+            with open(file, "w") as f:
+                f.write(newText)
+        
         subprocess.check_call(['cmake', '--build', '.'] + build_args, cwd=self.build_temp)
 
 
